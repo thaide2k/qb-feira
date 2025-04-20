@@ -60,6 +60,8 @@ RegisterNetEvent('qb-feira:server:rewardPlayer', function()
             TriggerClientEvent('QBCore:Notify', src, 'Erro ao adicionar kryon!', 'error')
             print("Erro ao adicionar kryon para o jogador ID: " .. src)
         end
+    else
+        print("Tentativa de recompensa falhou - Jogador inválido ou sem feira ativa: " .. src)
     end
 end)
 

@@ -1,14 +1,17 @@
 Config = {}
 
 -- Configurações gerais
-Config.RewardAmount = 1 -- Quantidade de kryon concedida por NPC
-Config.NPCSpawnInterval = 10 -- Intervalo em segundos para spawn de NPCs
-Config.MaxNPCs = 5 -- Número máximo de NPCs simultâneos
+Config.RewardAmount = 5 -- Quantidade de kryon concedida por NPC
+Config.NPCSpawnInterval = 15 -- Aumentado para 15 segundos para melhor controle
+Config.MaxNPCs = 3 -- Reduzido para 3 NPCs simultâneos para melhor desempenho
+
+-- Debug mode
+Config.Debug = true  -- Set to false in production
 
 -- Props para a mesa
 Config.TableProp = 'bkr_prop_weed_table_01a' -- Modelo da mesa de weed
 
--- Modelos de NPCs que visitarão a mesa
+-- Modelos de NPCs que visitarão a mesa - mantendo apenas pedestres comuns
 Config.NPCModels = {
     'a_m_m_beach_01',
     'a_m_m_bevhills_01',
