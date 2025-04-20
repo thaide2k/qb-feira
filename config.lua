@@ -4,6 +4,7 @@ Config = {}
 Config.RewardAmount = 5 -- Quantidade de kryon concedida por NPC
 Config.NPCSpawnInterval = 15 -- Aumentado para 15 segundos para melhor controle
 Config.MaxNPCs = 3 -- Reduzido para 3 NPCs simultâneos para melhor desempenho
+Config.NPCCheckInterval = 30 -- Verificação a cada 30 segundos para garantir que existam NPCs ativos
 
 -- Debug mode
 Config.Debug = true  -- Set to false in production

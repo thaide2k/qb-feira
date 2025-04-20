@@ -4,6 +4,7 @@ local tableObject = nil
 local spawnedNPCs = {}
 local tableCoords = nil
 local blip = nil
+local lastNPCCheck = 0
 
 -- Função de debug
 function DebugPrint(message)
@@ -123,6 +124,12 @@ function StartFeiraLoop()
                 break
             end
             
+            -- Verificar se há NPCs ativos e iniciar novo spawn se necessário
+            if feiraActive and GetGameTimer() - lastNPCCheck > Config.NPCCheckInterval * 1000 then
+                lastNPCCheck = GetGameTimer()
+                CheckAndSpawnNPC()
+            end
+            
             Citizen.Wait(1000)
         end
     end)
@@ -141,6 +148,29 @@ function StartFeiraLoop()
             Citizen.Wait(Config.NPCSpawnInterval * 1000)
         end
     end)
+end
+
+-- Função para verificar se existem NPCs executando ação
+function CheckAndSpawnNPC()
+    local activeNPCs = 0
+    local validNPCs = {}
+    
+    -- Verificar quais NPCs ainda existem e estão ativos
+    for i, npc in ipairs(spawnedNPCs) do
+        if DoesEntityExist(npc) then
+            activeNPCs = activeNPCs + 1
+            table.insert(validNPCs, npc)
+        end
+    end
+    
+    -- Atualizar a lista de NPCs válidos
+    spawnedNPCs = validNPCs
+    
+    -- Se não houver NPCs ativos e estamos abaixo do limite, spawnar um novo
+    if activeNPCs == 0 and #spawnedNPCs < Config.MaxNPCs then
+        DebugPrint("Nenhum NPC ativo encontrado, iniciando spawn de emergência")
+        SpawnNPC()
+    end
 end
 
 -- Função para spawnar um NPC
@@ -194,28 +224,40 @@ function SpawnNPC()
 end
 
 -- Função para encontrar ponto de spawn ao redor da mesa
+-- CORRIGIDO: Problema com GetGroundZFor_3dCoord
 function FindSpawnPointAroundTable()
     -- Decreased spawn radius to 5.0 (from 20.0) so NPCs spawn closer
-    local radius = 5.0
+    local radius = 15.0
     local angle = math.random() * 2 * math.pi
     
     local x = tableCoords.x + radius * math.cos(angle)
     local y = tableCoords.y + radius * math.sin(angle)
-    local z = tableCoords.z
     
-    -- Fix the GetGroundZFor_3dCoord usage - capture both return values properly
-    local groundZ, groundFound = GetGroundZFor_3dCoord(x, y, z, true)
+    -- Usar z um pouco acima do solo para garantir que encontramos o chão
+    local z = tableCoords.z + 5.0
     
-    DebugPrint("GetGroundZFor_3dCoord result: groundZ=" .. tostring(groundZ) .. ", found=" .. tostring(groundFound))
+    -- CORREÇÃO: Garantir que o Z seja um número, não um booleano
+    local groundZ = 0.0
+    local success = false
     
-    if groundFound then
-        -- Use the actual numeric groundZ value
-        return vector3(x, y, groundZ)
-    else
-        -- Fallback value - using tableCoords.z to ensure safe height
-        DebugPrint("Solo não encontrado, usando fallback")
-        return vector3(x, y, tableCoords.z - 0.5)
+    -- Tentar encontrar o Z do solo várias vezes em diferentes alturas se necessário
+    for i = 1, 5 do
+        -- Usamos uma altura temporária para tentar encontrar o solo
+        local tempZ = z - (i * 1.0)
+        
+        -- Capturar o retorno do GetGroundZFor_3dCoord corretamente
+        success, groundZ = GetGroundZFor_3dCoord(x, y, tempZ, true)
+        
+        if success then
+            -- Se encontrou o solo, retorna as coordenadas
+            DebugPrint("Solo encontrado na tentativa " .. i .. " em Z = " .. groundZ)
+            return vector3(x, y, groundZ)
+        end
     end
+    
+    -- Se não conseguiu encontrar o solo, usa o Z da mesa como fallback
+    DebugPrint("Solo não encontrado após múltiplas tentativas, usando Z da mesa como fallback")
+    return vector3(x, y, tableCoords.z)
 end
 
 -- Função para definir o comportamento do NPC
@@ -239,7 +281,7 @@ function SetNPCBehavior(npc)
         -- Esperar até que o NPC chegue perto da mesa ou seja removido
         local arrived = false
         local startTime = GetGameTimer()
-        local timeout = 30000 -- 30 segundos timeout
+        local timeout = 15000 -- 15 segundos timeout
         
         while not arrived and feiraActive and (GetGameTimer() - startTime) < timeout do
             if DoesEntityExist(npc) then
@@ -296,29 +338,33 @@ function SetNPCBehavior(npc)
                 TaskGoStraightToCoord(npc, awayPoint.x, awayPoint.y, awayPoint.z, 1.0, -1, 0.0, 0.0)
                 
                 -- Esperar até que o NPC esteja longe ou timeout
+                local startTime = GetGameTimer()
+                local timeout = 10000 -- 10 segundos timeout (reduzido de 30s)
                 local gone = false
-                startTime = GetGameTimer()
-                timeout = 30000 -- 30 segundos timeout
                 
                 while not gone and (GetGameTimer() - startTime) < timeout do
                     if DoesEntityExist(npc) then
                         local npcCoords = GetEntityCoords(npc)
                         local distanceToTable = #(npcCoords - tableCoords)
                         
-                        if distanceToTable > 25.0 then
+                        -- ALTERADO: Reduzido de 25.0 para 10.0 unidades
+                        if distanceToTable > 10.0 then
                             gone = true
                             DebugPrint("NPC " .. npc .. " está suficientemente longe. Removendo...")
+                            break
                         end
                         
                         Citizen.Wait(500)
                     else
                         gone = true
                         DebugPrint("NPC " .. npc .. " não existe mais durante a saída")
+                        break
                     end
                 end
             end
             
             -- Remover NPC da lista e deletar
+            -- Deletamos o NPC imediatamente quando ele atinge a distância adequada
             for i, ped in ipairs(spawnedNPCs) do
                 if ped == npc then
                     table.remove(spawnedNPCs, i)
